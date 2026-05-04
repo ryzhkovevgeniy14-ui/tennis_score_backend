@@ -68,3 +68,16 @@ async def get_all_matches():
         {"match_id": match_id, **match.score()}
         for match_id, match in storage.matches.items()
     ]
+
+
+@router.get("/{match_id}", response_model=MatchModel, status_code=status.HTTP_200_OK)
+async def get_match(match_id: int):
+    match = storage.matches.get(match_id)
+
+    if not match:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Матч не найден")
+
+    return {
+        "match_id": match_id,
+        **match.score()
+    }
