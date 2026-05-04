@@ -65,3 +65,27 @@ async def get_players_rating():
     result.sort(key=lambda x: x["rating"], reverse=True)
 
     return result
+
+
+@router.delete("/{player_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_player(player_id: int):
+    # Найти игрока
+    player_to_delete = None
+    for player in storage.players:
+        if player.id == player_id:
+            player_to_delete = player
+            break
+
+    if not player_to_delete:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Игрок не найден")
+
+    # Проверить, участвует ли в матчах
+    for match in storage.matches.values():
+        if player_to_delete.name in [match.player_1_name, match.player_2_name]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Нельзя удалить игрока: он участвует в матче"
+            )
+
+    storage.players.remove(player_to_delete)
+    return
