@@ -30,3 +30,12 @@ async def create_player(player: PlayerCreate):
 @router.get("/", response_model=list[PlayerModel], status_code=status.HTTP_200_OK)
 async def get_all_players():
     return storage.players
+
+
+@router.get("/{player_id}", response_model=PlayerModel, status_code=status.HTTP_200_OK)
+async def get_player(player_id: int):
+    for player in storage.players:
+        if player.id == player_id:
+            return player
+
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Игрок не найден")
