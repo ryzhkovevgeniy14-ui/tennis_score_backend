@@ -25,3 +25,8 @@ async def create_player(player: PlayerCreate):
     storage.current_player_id += 1
 
     return new_player
+
+
+@router.get("/", response_model=list[PlayerModel], status_code=status.HTTP_200_OK)
+async def get_all_players():
+    return storage.players
