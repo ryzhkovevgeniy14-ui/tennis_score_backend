@@ -96,3 +96,26 @@ async def add_game(match_id: int, data: GameUpdate):
         "match_id": match_id,
         **match.score()
     }
+
+
+@router.post("/{match_id}/undo", response_model=MatchModel)
+async def undo_match_action(match_id: int):
+    """Отмена последнего действия в матче"""
+    match = storage.matches.get(match_id)
+
+    if not match:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Матч не найден"
+        )
+
+    if not match.undo():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Нечего отменять"
+        )
+
+    return {
+        "match_id": match_id,
+        **match.score()
+    }
