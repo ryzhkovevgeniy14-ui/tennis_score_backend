@@ -81,3 +81,18 @@ async def get_match(match_id: int):
         "match_id": match_id,
         **match.score()
     }
+
+
+@router.post("/{match_id}/score", response_model=MatchModel, status_code=status.HTTP_200_OK)
+async def add_game(match_id: int, data: GameUpdate):
+    match = storage.matches.get(match_id)
+
+    if not match:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Матч не найден")
+
+    match.change_games_score(data.player, data.count)
+
+    return {
+        "match_id": match_id,
+        **match.score()
+    }
