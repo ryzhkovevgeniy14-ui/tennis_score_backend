@@ -39,3 +39,29 @@ async def get_player(player_id: int):
             return player
 
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Игрок не найден")
+
+
+@router.get("/rating/")
+async def get_players_rating():
+    """Возвращает рейтинг всех игроков, отсортированный по убыванию"""
+    rating_dict = {}
+
+    # Сначала добавляем всех игроков с рейтингом 0
+    for player in storage.players:
+        rating_dict[player.name] = 0
+
+    # Потом добавляем рейтинг из матчей
+    for match in storage.matches.values():
+        rating_dict[match.player_1_name] = rating_dict.get(match.player_1_name, 0) + match.rating_p1
+        rating_dict[match.player_2_name] = rating_dict.get(match.player_2_name, 0) + match.rating_p2
+
+    # Преобразуем в список
+    result = [
+        {"name": name, "rating": rating}
+        for name, rating in rating_dict.items()
+    ]
+
+    # Сортировка по убыванию
+    result.sort(key=lambda x: x["rating"], reverse=True)
+
+    return result
