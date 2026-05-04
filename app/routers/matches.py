@@ -60,3 +60,11 @@ async def create_match(data: MatchCreate):
         "match_id": match_id,
         **match.score()
     }
+
+
+@router.get("/", response_model=list[MatchModel], status_code=status.HTTP_200_OK)
+async def get_all_matches():
+    return [
+        {"match_id": match_id, **match.score()}
+        for match_id, match in storage.matches.items()
+    ]
