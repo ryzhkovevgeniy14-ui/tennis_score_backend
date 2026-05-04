@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tennis Score</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<h2>🎾 Tennis Score</h2>
+
+<!-- 1. ДОБАВИТЬ ИГРОКА -->
+<div class="block">
+  <h3>🆕 Добавить игрока</h3>
+  <input id="playerName" placeholder="Имя игрока" />
+  <button onclick="createPlayer()">Создать</button>
+</div>
+
+<!-- 2. ВСЕ ИГРОКИ -->
+<div class="block">
+  <h3>👥 Список игроков</h3>
+  <button onclick="getPlayers()">Показать всех</button>
+  <div id="players"></div>
+</div>
+
+<!-- 3. СОЗДАТЬ МАТЧ -->
+<div class="block">
+  <h3>⚔️ Создать матч</h3>
+  <input id="p1" placeholder="Игрок 1" />
+  <input id="p2" placeholder="Игрок 2" />
+  <button onclick="createMatch()">Создать</button>
+</div>
+
+<!-- 4. ВСЕ МАТЧИ -->
+<div class="block">
+  <h3>📋 Список матчей</h3>
+  <button onclick="getMatches()">Показать все матчи</button>
+  <div id="matches"></div>
+</div>
+
+<!-- 5. МОИ МАТЧИ (всплывающий блок) -->
+<div class="block" id="playerMatchesBlock" style="display: none;">
+  <!-- сюда динамически подставляется список матчей игрока -->
+</div>
+
+<!-- 6. Рейтинг -->
+<div class="block">
+  <h3>🏆 Рейтинг игроков</h3>
+  <button onclick="showRating()">Показать рейтинг</button>
+  <div id="rating"></div>
+</div>
+
+<script src="script.js"></script>
+<div id="toast-container"></div>
+
+</body>
+</html>
