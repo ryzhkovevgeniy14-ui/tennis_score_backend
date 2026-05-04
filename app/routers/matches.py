@@ -119,3 +119,16 @@ async def undo_match_action(match_id: int):
         "match_id": match_id,
         **match.score()
     }
+
+
+@router.delete("/{match_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_match(match_id: int):
+    match = storage.matches.get(match_id)
+
+    if not match:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Матч не найден"
+        )
+
+    del storage.matches[match_id]
