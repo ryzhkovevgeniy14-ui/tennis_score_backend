@@ -1,5 +1,5 @@
 from sqlalchemy import String, DateTime, ForeignKey, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from datetime import datetime
 
@@ -24,3 +24,8 @@ class Match(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Связи
+    player1 = relationship("Player", foreign_keys=[player1_id], back_populates="matches_as_player1")
+    player2 = relationship("Player", foreign_keys=[player2_id], back_populates="matches_as_player2")
+    sets_history = relationship("SetHistory", back_populates="match", cascade="all, delete-orphan")
