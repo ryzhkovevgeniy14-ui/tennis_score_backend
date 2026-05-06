@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class PlayerCreate(BaseModel):
@@ -8,3 +8,5 @@ class PlayerCreate(BaseModel):
 class Player(BaseModel):
     id: int
     name: str
+
+    model_config = ConfigDict(from_attributes=True)
