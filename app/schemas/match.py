@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class MatchCreate(BaseModel):
@@ -13,6 +13,8 @@ class Match(BaseModel):
     sets: list[int]
     history_sets: list[dict[str, int]]
     server: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GameUpdate(BaseModel):
