@@ -1,6 +1,7 @@
 /* ============================================================
    КОНФИГУРАЦИЯ И ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
    ============================================================ */
+// const API = "https://tennis-score-mlg3.onrender.com";
 const API = "http://127.0.0.1:8000";
 let activeMatchId = null;
 
@@ -260,21 +261,17 @@ async function addGame(matchId, player, delta = 1) {
     });
     showToast(delta > 0 ? `+1 ${player}` : `-1 ${player}`, delta > 0 ? "success" : "error");
 
-    // Обновляем карточки матчей в блоке "Мои матчи" без перерисовки
     const playerMatchesBlock = document.getElementById("playerMatchesBlock");
     if (playerMatchesBlock && playerMatchesBlock.style.display === "block") {
-      // Получаем свежие данные матча
       const updatedMatch = await request(`${API}/matches/${matchId}`);
 
-      // Находим карточку этого матча в блоке и обновляем её
       const wrappers = playerMatchesBlock.querySelectorAll(".match-wrapper");
       for (const wrapper of wrappers) {
         const matchIdAttr = wrapper.getAttribute("data-match-id");
         if (matchIdAttr == matchId) {
-          // Обновляем содержимое карточки
           const oldMatchElement = wrapper.querySelector(".match-card");
           if (oldMatchElement) {
-            const newMatchElement = renderMatch(updatedMatch, false);
+            const newMatchElement = renderMatch(updatedMatch, true);  // ← здесь true
             newMatchElement.className = "match-card";
             oldMatchElement.replaceWith(newMatchElement);
           }
@@ -320,7 +317,7 @@ function renderMatch(m, showControls) {
   const history = m.history_sets || [];
   const current = m.current_set || {};
   const server = m.server;
-  const setsCount = m.sets || [0, 0];  // текущий счёт по сетам
+  const setsCount = m.sets || [0, 0];
 
   const p1Sets = history.map(s => s[p1] ?? 0);
   const p2Sets = history.map(s => s[p2] ?? 0);
@@ -336,10 +333,10 @@ function renderMatch(m, showControls) {
   // Строка счёта для игрока 1
   card.appendChild(createScoreRow(
     p1,
-    setsCount[0],           // текущий счёт по сетам
-    p1Sets,                 // история сетов
-    current[p1] ?? 0,       // текущий гейм
-    server === p1           // подаёт ли
+    setsCount[0],
+    p1Sets,
+    current[p1] ?? 0,
+    server === p1
   ));
 
   // Строка счёта для игрока 2
@@ -358,6 +355,7 @@ function renderMatch(m, showControls) {
     controls.style.flexWrap = "wrap";
     controls.style.marginTop = "10px";
 
+    // Кнопки для игрока 1
     const p1Group = document.createElement("div");
     p1Group.style.display = "flex";
     p1Group.style.gap = "5px";
@@ -365,8 +363,16 @@ function renderMatch(m, showControls) {
     const btn1Plus = document.createElement("button");
     btn1Plus.textContent = `+1 ${p1}`;
     btn1Plus.onclick = () => addGame(m.match_id, p1, 1);
-    p1Group.appendChild(btn1Plus);
 
+    const btn1Minus = document.createElement("button");
+    btn1Minus.textContent = `-1 ${p1}`;
+    btn1Minus.style.background = "orange";
+    btn1Minus.onclick = () => addGame(m.match_id, p1, -1);
+
+    p1Group.appendChild(btn1Plus);
+    p1Group.appendChild(btn1Minus);
+
+    // Кнопки для игрока 2
     const p2Group = document.createElement("div");
     p2Group.style.display = "flex";
     p2Group.style.gap = "5px";
@@ -374,38 +380,28 @@ function renderMatch(m, showControls) {
     const btn2Plus = document.createElement("button");
     btn2Plus.textContent = `+1 ${p2}`;
     btn2Plus.onclick = () => addGame(m.match_id, p2, 1);
-    p2Group.appendChild(btn2Plus);
 
-    const undoBtn = document.createElement("button");
-    undoBtn.textContent = "↩️ Отмена";
-    undoBtn.style.background = "orange";
-    undoBtn.onclick = async () => {
-      await undoMatchAction(m.match_id);
-      const updatedMatch = await request(`${API}/matches/${m.match_id}`);
-      const newMatchElement = renderMatch(updatedMatch, true);
-      const container = document.getElementById("match");
-      if (container) {
-        container.innerHTML = "";
-        addCloseButton(container, () => {
-          container.innerHTML = "";
-          activeMatchId = null;
-        });
-        container.appendChild(newMatchElement);
-      }
-      // Обновляем блок "Мои матчи" если открыт
-      const playerMatchesBlock = document.getElementById("playerMatchesBlock");
-      if (playerMatchesBlock && playerMatchesBlock.style.display === "block") {
-        const title = playerMatchesBlock.querySelector("h3");
-        if (title) {
-          const playerName = title.textContent.replace("🎾 Мои матчи", "").trim();
-          if (playerName) await showPlayerMatches(playerName);
-        }
-      }
-    };
+    const btn2Minus = document.createElement("button");
+    btn2Minus.textContent = `-1 ${p2}`;
+    btn2Minus.style.background = "orange";
+    btn2Minus.onclick = () => addGame(m.match_id, p2, -1);
+
+    p2Group.appendChild(btn2Plus);
+    p2Group.appendChild(btn2Minus);
 
     controls.appendChild(p1Group);
     controls.appendChild(p2Group);
-    controls.appendChild(undoBtn);
+
+    // Кнопка "Закрыть"
+    const closeControlsBtn = document.createElement("button");
+    closeControlsBtn.textContent = "❌ Закрыть";
+    closeControlsBtn.style.background = "gray";
+    closeControlsBtn.onclick = () => {
+      controls.style.display = "none";
+    };
+
+    controls.appendChild(closeControlsBtn);
+
     card.appendChild(controls);
   }
 
@@ -544,77 +540,14 @@ async function showPlayerMatches(playerName) {
     playerMatches.forEach(m => {
       const wrapper = document.createElement("div");
       wrapper.style.marginBottom = "20px";
-      wrapper.setAttribute("data-match-id", m.match_id);
+      wrapper.setAttribute("data-match-id", m.id);
       wrapper.className = "match-wrapper";
 
-      // Карточка матча
-      const matchElement = renderMatch(m, false);
+      // Рендерим матч с контролами (true)
+      const matchElement = renderMatch(m, true);
       matchElement.className = "match-card";
       wrapper.appendChild(matchElement);
 
-      // Кнопка "Изменить счёт"
-      const editBtn = document.createElement("button");
-      editBtn.textContent = "✏️ Изменить счёт";
-      editBtn.style.marginTop = "8px";
-      editBtn.style.marginRight = "8px";
-
-      // Контейнер для контролов (изначально скрыт)
-      const controlsDiv = document.createElement("div");
-      controlsDiv.style.marginTop = "10px";
-      controlsDiv.style.display = "none";
-      controlsDiv.style.gap = "8px";
-      controlsDiv.style.flexWrap = "wrap";
-
-      // Кнопки изменения счёта (только +1 и отмена)
-      const p1 = m.players[0];
-      const p2 = m.players[1];
-
-      const btn1Plus = document.createElement("button");
-      btn1Plus.textContent = `+1 ${p1}`;
-      btn1Plus.onclick = () => addGame(m.match_id, p1, 1);
-
-      const btn2Plus = document.createElement("button");
-      btn2Plus.textContent = `+1 ${p2}`;
-      btn2Plus.onclick = () => addGame(m.match_id, p2, 1);
-
-      const undoBtn = document.createElement("button");
-      undoBtn.textContent = `↩️ Отмена`;
-      undoBtn.style.background = "orange";
-      undoBtn.onclick = async () => {
-        await undoMatchAction(m.match_id);
-        // Обновляем карточку матча
-        const updatedMatch = await request(`${API}/matches/${m.match_id}`);
-        const newMatchElement = renderMatch(updatedMatch, false);
-        const oldMatchElement = wrapper.querySelector(".match-card");
-        if (oldMatchElement) {
-          oldMatchElement.replaceWith(newMatchElement);
-          newMatchElement.className = "match-card";
-        }
-      };
-
-      const closeControlsBtn = document.createElement("button");
-      closeControlsBtn.textContent = "❌ Закрыть";
-      closeControlsBtn.style.background = "gray";
-      closeControlsBtn.onclick = () => {
-        controlsDiv.style.display = "none";
-      };
-
-      controlsDiv.appendChild(btn1Plus);
-      controlsDiv.appendChild(btn2Plus);
-      controlsDiv.appendChild(undoBtn);
-      controlsDiv.appendChild(closeControlsBtn);
-
-      // Переключение видимости контролов
-      editBtn.onclick = () => {
-        if (controlsDiv.style.display === "none") {
-          controlsDiv.style.display = "flex";
-        } else {
-          controlsDiv.style.display = "none";
-        }
-      };
-
-      wrapper.appendChild(editBtn);
-      wrapper.appendChild(controlsDiv);
       content.appendChild(wrapper);
     });
 
