@@ -14,6 +14,10 @@ class Match(Base):
     player2_name: Mapped[str] = mapped_column(String(100), nullable=False)
     games_p1: Mapped[int] = mapped_column(default=0)
     games_p2: Mapped[int] = mapped_column(default=0)
+    sets_p1: Mapped[int] = mapped_column(default=0, server_default="0")
+    sets_p2: Mapped[int] = mapped_column(default=0, server_default="0")
+    tiebreak: Mapped[bool] = mapped_column(nullable=False, server_default="false")
+    server_name: Mapped[str] = mapped_column(String(100), nullable=False, server_default="")
 
     # Связь один ко многим (много матчей - 1 игрок)
     player1: Mapped["Player"] = relationship(
@@ -25,4 +29,12 @@ class Match(Base):
         "Player",
         foreign_keys="Match.player2_id",
         back_populates="matches_player2"
+    )
+
+    # Связь один ко многим (1 матч - много сетов)
+    sets_history: Mapped[list["SetHistory"]] = relationship(
+        "SetHistory",
+        foreign_keys="SetHistory.match_id",
+        back_populates="match",
+        cascade="all, delete-orphan"
     )
