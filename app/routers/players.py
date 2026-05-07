@@ -1,7 +1,11 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 
-from app.schemas.player import PlayerCreate, Player as PlayerModel
-from app.storage import storage
+from app.schemas.player import PlayerCreate, Player as PlayerSchema
+from app.models.player import Player as PlayerModel
+from app.models.match import Match as MatchModel
+from app.db.depends import get_async_db
 
 
 router = APIRouter(
@@ -10,82 +14,73 @@ router = APIRouter(
 )
 
 
-@router.post("/", response_model=PlayerModel, status_code=status.HTTP_201_CREATED)
-async def create_player(player: PlayerCreate):
+@router.post("/", response_model=PlayerSchema, status_code=status.HTTP_201_CREATED)
+async def create_player(player: PlayerCreate, session: AsyncSession = Depends(get_async_db)):
+    """
+    Добавляет нового игрока.
+    """
     player_name = player.name.strip()
 
-    for existing_player in storage.players:
-        if existing_player.name.lower() == player_name.lower():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Игрок уже существует")
+    # Проверяем есть ли уже такой игрок
+    stmt = select(PlayerModel).where(func.lower(PlayerModel.name) == player_name.lower())
+    result = await session.scalar(stmt)
+    if result:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Игрок уже существует")
 
-    player_id = storage.current_player_id
-    new_player = PlayerModel(id=player_id, name=player_name)
-
-    storage.players.append(new_player)
-    storage.current_player_id += 1
+    # Создаём нового игрока в БД
+    new_player = PlayerModel(**player.model_dump())
+    session.add(new_player)
+    await session.commit()
+    await session.refresh(new_player)
 
     return new_player
 
 
-@router.get("/", response_model=list[PlayerModel], status_code=status.HTTP_200_OK)
-async def get_all_players():
-    return storage.players
+@router.get("/", response_model=list[PlayerSchema], status_code=status.HTTP_200_OK)
+async def get_all_players(session: AsyncSession = Depends(get_async_db)):
+    """
+    Возвращает список всех игроков.
+    """
+    stmt = select(PlayerModel)
+    result = await session.scalars(stmt)
+    all_players = result.all()
+
+    return all_players
 
 
-@router.get("/{player_id}", response_model=PlayerModel, status_code=status.HTTP_200_OK)
-async def get_player(player_id: int):
-    for player in storage.players:
-        if player.id == player_id:
-            return player
+@router.get("/{player_id}", response_model=PlayerSchema, status_code=status.HTTP_200_OK)
+async def get_player(player_id: int, session: AsyncSession = Depends(get_async_db)):
+    """
+    Возвращает игрока по ID.
+    """
+    stmt = select(PlayerModel).where(PlayerModel.id == player_id)
+    player = await session.scalar(stmt)
 
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Игрок не найден")
+    if not player:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Игрок не найден")
 
-
-@router.get("/rating/")
-async def get_players_rating():
-    """Возвращает рейтинг всех игроков, отсортированный по убыванию"""
-    rating_dict = {}
-
-    # Сначала добавляем всех игроков с рейтингом 0
-    for player in storage.players:
-        rating_dict[player.name] = 0
-
-    # Потом добавляем рейтинг из матчей
-    for match in storage.matches.values():
-        rating_dict[match.player_1_name] = rating_dict.get(match.player_1_name, 0) + match.rating_p1
-        rating_dict[match.player_2_name] = rating_dict.get(match.player_2_name, 0) + match.rating_p2
-
-    # Преобразуем в список
-    result = [
-        {"name": name, "rating": rating}
-        for name, rating in rating_dict.items()
-    ]
-
-    # Сортировка по убыванию
-    result.sort(key=lambda x: x["rating"], reverse=True)
-
-    return result
+    return player
 
 
 @router.delete("/{player_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_player(player_id: int):
-    # Найти игрока
-    player_to_delete = None
-    for player in storage.players:
-        if player.id == player_id:
-            player_to_delete = player
-            break
-
-    if not player_to_delete:
+async def delete_player(player_id: int, session: AsyncSession = Depends(get_async_db)):
+    """
+    Удаление игрока по ID.
+    """
+    # Проверяем наличие игрока
+    stmt = select(PlayerModel).where(PlayerModel.id == player_id)
+    player = await session.scalar(stmt)
+    if not player:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Игрок не найден")
 
-    # Проверить, участвует ли в матчах
-    for match in storage.matches.values():
-        if player_to_delete.name in [match.player_1_name, match.player_2_name]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Нельзя удалить игрока: он участвует в матче"
-            )
+    # Проверяем участвует ли игрок в матчах
+    stmt = select(MatchModel).where(
+        (MatchModel.player1_id == player_id) | (MatchModel.player2_id == player_id)
+    )
+    match = await session.scalar(stmt)
+    if match:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Игрок участвует в матче")
 
-    storage.players.remove(player_to_delete)
+    await session.delete(player)
+    await session.commit()
     return
