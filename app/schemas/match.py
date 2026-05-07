@@ -2,21 +2,20 @@ from pydantic import BaseModel, ConfigDict
 
 
 class MatchCreate(BaseModel):
-    player_1_name: str
-    player_2_name: str
+    player1_name: str
+    player2_name: str
 
 
-class Match(BaseModel):
-    match_id: int
-    players: list[str]
-    current_set: dict[str, int]
-    sets: list[int]
-    history_sets: list[dict[str, int]]
-    server: str
+class MatchResponse(BaseModel):
+    id: int
+    player1_name: str
+    player2_name: str
+    games_p1: int
+    games_p2: int
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class GameUpdate(BaseModel):
-    player: str
+    player_name: str
     count: int
