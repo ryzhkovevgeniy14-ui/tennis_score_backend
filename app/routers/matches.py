@@ -7,6 +7,7 @@ from app.models.match import Match as MatchModel
 from app.models.player import Player as PlayerModel
 from app.models.set_history import SetHistory
 from app.services.game import GameService
+from app.services.stats_service import StatsService
 from app.db.depends import get_async_db
 
 
@@ -39,49 +40,72 @@ async def _build_match_response(match: MatchModel, session: AsyncSession) -> Mat
         history_sets=history_list
     )
 
-async def _modify_score(match_id: int, player_name: str, delta: int, session: AsyncSession):
+async def _rollback_set(match: MatchModel, session: AsyncSession) -> MatchResponse:
     """
-    Изменение счёта по геймам
+    Изменение счёта и статистики при откате сета
     """
+    last_set_stmt = select(SetHistory).where(SetHistory.match_id == match.id).order_by(
+        SetHistory.set_number.desc()).limit(1)
+    last_set = await session.scalar(last_set_stmt)
+    if not last_set:
+        raise HTTPException(400, "Нет сета для отката")
+
+    stats_service = StatsService(session)
+
+    if last_set.player1_games > last_set.player2_games:
+        match.sets_p1 -= 1
+        match.games_p1 = last_set.player1_games - 1
+        match.games_p2 = last_set.player2_games
+        winner_id = match.player1_id
+        loser_id = match.player2_id
+    else:
+        match.sets_p2 -= 1
+        match.games_p1 = last_set.player1_games
+        match.games_p2 = last_set.player2_games - 1
+        winner_id = match.player2_id
+        loser_id = match.player1_id
+
+    match.tiebreak = False
+    match.server_name = last_set.server_name
+
+    # Откатываем последний гейм сета
+    await stats_service.rollback_game(winner_id, loser_id)
+    await stats_service.rollback_rating(winner_id, 10)
+
+    # Откатываем сет
+    await stats_service.rollback_set(winner_id, loser_id)
+    await stats_service.rollback_rating(winner_id, 100)
+
+    await session.delete(last_set)
+    await session.commit()
+    await session.refresh(match)
+
+    return await _build_match_response(match, session)
+
+
+async def _modify_score(match_id: int, player_name: str, delta: int, session: AsyncSession) -> MatchResponse:
     # Загружаем матч
-    stmt = select(MatchModel).where(MatchModel.id == match_id)
-    match = await session.scalar(stmt)
+    match = await session.get(MatchModel, match_id)
     if not match:
         raise HTTPException(404, "Матч не найден")
 
-    # Откат последнего сета (только для delta == -1 и геймы 0:0)
+    # Откат сета (если delta == -1 и геймы 0:0)
     if delta == -1 and match.games_p1 == 0 and match.games_p2 == 0:
-        last_set_stmt = select(SetHistory).where(SetHistory.match_id == match_id).order_by(
-            SetHistory.set_number.desc()).limit(1)
-        last_set = await session.scalar(last_set_stmt)
-        if not last_set:
-            raise HTTPException(400, "Нет сета для отката")
+        return await _rollback_set(match, session)
 
-        if last_set.player1_games > last_set.player2_games:
-            match.sets_p1 -= 1
-            match.games_p1 = last_set.player1_games - 1
-            match.games_p2 = last_set.player2_games
-        else:
-            match.sets_p2 -= 1
-            match.games_p1 = last_set.player1_games
-            match.games_p2 = last_set.player2_games - 1
-
-        match.tiebreak = False
-        match.server_name = last_set.server_name
-        await session.delete(last_set)
-        await session.commit()
-        await session.refresh(match)
-        return await _build_match_response(match, session)
-
-    # Обычное изменение счёта
+    # --- Обычное изменение счёта ---
+    old_games = (match.games_p1, match.games_p2)
     old_sets = (match.sets_p1, match.sets_p2)
+    old_server = match.server_name
 
+    # Создаём GameService
     game = GameService(match.player1_name, match.player2_name)
     game.games = [match.games_p1, match.games_p2]
     game.sets = [match.sets_p1, match.sets_p2]
     game.tiebreak = match.tiebreak
     game.server = match.server_name
 
+    # Применяем изменение счёта
     game.change_games_score(player_name, delta)
 
     # Обновляем матч
@@ -92,16 +116,54 @@ async def _modify_score(match_id: int, player_name: str, delta: int, session: As
     match.tiebreak = game.tiebreak
     match.server_name = game.server
 
-    # Если завершился сет — сохраняем в историю
+    # Обновляем статистику геймов
+    stats_service = StatsService(session)
+    print("Я ДОШЁЛ ДО if delta == 1")
+    if delta == 1:
+        # Добавление гейма
+        if player_name == match.player1_name:
+            print(f"Я ПРОШЁЛ СРАВНЕНИЕ if match.games_p1 > old_games[0]")
+            winner_id = int(match.player1_id)
+            loser_id = int(match.player2_id)
+            print(f"Я ПРИНТУЮ winner_id = {winner_id} с типом {type(winner_id)}")
+            print(f"Я ПРИНТУЮ loser_id = {loser_id} с типом {type(loser_id)}")
+        else:
+            winner_id = int(match.player2_id)
+            loser_id = int(match.player1_id)
+
+        await stats_service.update_game(winner_id, loser_id)
+        await stats_service.update_rating(winner_id, 10)
+
+    elif delta == -1:
+        # Уменьшение гейма
+        if player_name == match.player1_name:
+            winner_id = int(match.player1_id)
+            loser_id = int(match.player2_id)
+        else:
+            winner_id = int(match.player2_id)
+            loser_id = int(match.player1_id)
+
+        await stats_service.rollback_game(winner_id, loser_id)
+        await stats_service.rollback_rating(winner_id, 10)
+
+    # Если завершился сет — сохраняем в историю и обновляем статистику сетов
     if (match.sets_p1 > old_sets[0]) or (match.sets_p2 > old_sets[1]):
         new_set = SetHistory(
             match_id=match_id,
             set_number=match.sets_p1 + match.sets_p2,
             player1_games=game.last_score_games[0],
             player2_games=game.last_score_games[1],
-            server_name=game.last_server
+            server_name=old_server
         )
         session.add(new_set)
+
+        # Обновляем статистику сетов
+        if match.sets_p1 > old_sets[0]:
+            await stats_service.update_set(match.player1_id, match.player2_id)
+            await stats_service.update_rating(match.player1_id, 100)
+        else:
+            await stats_service.update_set(match.player2_id, match.player1_id)
+            await stats_service.update_rating(match.player2_id, 100)
 
     await session.commit()
     await session.refresh(match)
@@ -193,11 +255,17 @@ async def get_match(match_id: int, session: AsyncSession = Depends(get_async_db)
 
 @router.post("/{match_id}/add_game", response_model=MatchResponse, status_code=status.HTTP_200_OK)
 async def add_game(match_id: int, data: GameUpdate, session: AsyncSession = Depends(get_async_db)):
+    """
+    Увеличиваем геймы
+    """
     return await _modify_score(match_id, data.player_name, 1, session)
 
 
 @router.post("/{match_id}/reduce_game", response_model=MatchResponse, status_code=status.HTTP_200_OK)
 async def reduce_game(match_id: int, data: GameUpdate, session: AsyncSession = Depends(get_async_db)):
+    """
+    Уменьшение количества геймов (откат изменений)
+    """
     return await _modify_score(match_id, data.player_name, -1, session)
 
 
