@@ -11,7 +11,7 @@ class Player(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
 
 
-    # Связь один ко многим (1 игрок - много матчей)
+    # Связь один ко многим (много матчей - 1 игрок)
     matches_player1: Mapped[list["Match"]] = relationship(
         "Match",
         foreign_keys="Match.player1_id",
@@ -21,4 +21,11 @@ class Player(Base):
         "Match",
         foreign_keys="Match.player2_id",
         back_populates="player2"
+    )
+
+    # Связь один к одному (1 набор статистики для 1 игрока)
+    stats: Mapped["PlayerStats"] = relationship(
+        "PlayerStats",
+        back_populates="player",
+        uselist=False
     )
