@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey
+from sqlalchemy import String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -12,6 +12,7 @@ class SetHistory(Base):
     set_number: Mapped[int] = mapped_column(nullable=False)
     player1_games: Mapped[int] = mapped_column(nullable=False)
     player2_games: Mapped[int] = mapped_column(nullable=False)
+    server_name: Mapped[str] = mapped_column(String(100), nullable=False, server_default="")
 
     # Связь один ко многим (1 матч - много сетов)
     match: Mapped["Match"] = relationship(
