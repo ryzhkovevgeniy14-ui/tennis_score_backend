@@ -1,20 +1,38 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
 
 from app.routers import players, matches
 
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Выполняется при запуске и остановке сервера"""
+    # Startup
+    print("Выполнение миграций...")
+    from app.migrate import run_migrations
+    await asyncio.to_thread(run_migrations)
+    print("Миграции выполнены")
 
-# CORS middleware
+    yield  # Здесь сервер работает
+
+    # Shutdown (опционально)
+    print("Завершение работы сервера")
+
+
+app = FastAPI(lifespan=lifespan)
+
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # потом можно сузить до фронта
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Подключаем роутеры
 app.include_router(players.router)
 app.include_router(matches.router)
 
