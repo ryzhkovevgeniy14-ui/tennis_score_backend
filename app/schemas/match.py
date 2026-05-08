@@ -12,6 +12,11 @@ class MatchResponse(BaseModel):
     player2_name: str
     games_p1: int
     games_p2: int
+    sets_p1: int
+    sets_p2: int
+    tiebreak: bool
+    server_name: str
+    history_sets: list[dict[str, int]] = []
 
     model_config = ConfigDict(from_attributes=True)
 
