@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from app.schemas.player import PlayerCreate, Player as PlayerSchema
 from app.models.player import Player as PlayerModel
 from app.models.match import Match as MatchModel
+from app.models.player_stats import PlayerStats
 from app.db.depends import get_async_db
 
 
@@ -60,6 +61,72 @@ async def get_player(player_id: int, session: AsyncSession = Depends(get_async_d
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Игрок не найден")
 
     return player
+
+
+@router.get("/rating/")
+async def get_players_rating(session: AsyncSession = Depends(get_async_db)):
+    """
+    Возвращает рейтинг всех игроков, отсортированный по убыванию
+    """
+    # Получаем всех игроков
+    players_result = await session.execute(select(PlayerModel))
+    players = players_result.scalars().all()
+
+    # Получаем статистику
+    stats_result = await session.execute(select(PlayerStats))
+    stats_dict = {stat.player_id: stat for stat in stats_result.scalars().all()}
+
+    # Формируем результат
+    result = []
+    for player in players:
+        stats = stats_dict.get(player.id)
+        rating = stats.rating_points if stats else 0
+        result.append({
+            "name": player.name,
+            "rating": rating
+        })
+
+    # Сортируем по убыванию
+    result.sort(key=lambda x: x["rating"], reverse=True)
+
+    return result
+
+
+@router.get("/{player_id}/stats")
+async def get_player_stats(player_id: int, session: AsyncSession = Depends(get_async_db)):
+    # Получаем игрока
+    player = await session.get(PlayerModel, player_id)
+    if not player:
+        raise HTTPException(404, "Игрок не найден")
+
+    # Получаем статистику
+    stats = await session.get(PlayerStats, player_id)
+
+    if not stats:
+        return {
+            "name": player.name,
+            "games": {"won": 0, "lost": 0, "percent": 0},
+            "sets": {"won": 0, "lost": 0, "percent": 0},
+            "rating": 0
+        }
+
+    total_games = stats.games_won + stats.games_lost
+    total_sets = stats.sets_won + stats.sets_lost
+
+    return {
+        "name": player.name,
+        "games": {
+            "won": stats.games_won,
+            "lost": stats.games_lost,
+            "percent": round(stats.games_won / total_games * 100, 1) if total_games > 0 else 0
+        },
+        "sets": {
+            "won": stats.sets_won,
+            "lost": stats.sets_lost,
+            "percent": round(stats.sets_won / total_sets * 100, 1) if total_sets > 0 else 0
+        },
+        "rating": stats.rating_points
+    }
 
 
 @router.delete("/{player_id}", status_code=status.HTTP_204_NO_CONTENT)
