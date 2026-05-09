@@ -102,12 +102,30 @@ async def get_player_stats(player_id: int, session: AsyncSession = Depends(get_a
     # Получаем статистику
     stats = await session.get(PlayerStats, player_id)
 
+    # Получаем всех игроков для расчёта места в рейтинге
+    all_players = await session.execute(select(PlayerModel))
+    all_players_list = all_players.scalars().all()
+
+    all_stats_result = await session.execute(select(PlayerStats))
+    stats_dict = {s.player_id: s for s in all_stats_result.scalars().all()}
+
+    # Формируем список очков для сортировки
+    points_list = []
+    for p in all_players_list:
+        pts = stats_dict.get(p.id).rating_points if stats_dict.get(p.id) else 0
+        points_list.append({"player_id": p.id, "points": pts})
+
+    # Сортируем по очкам (по убыванию) и определяем место
+    points_list.sort(key=lambda x: x["points"], reverse=True)
+    rank = next((i + 1 for i, p in enumerate(points_list) if p["player_id"] == player_id), None)
+
     if not stats:
         return {
             "name": player.name,
             "games": {"won": 0, "lost": 0, "percent": 0},
             "sets": {"won": 0, "lost": 0, "percent": 0},
-            "rating": 0
+            "points": 0,
+            "rank": rank
         }
 
     total_games = stats.games_won + stats.games_lost
@@ -125,7 +143,8 @@ async def get_player_stats(player_id: int, session: AsyncSession = Depends(get_a
             "lost": stats.sets_lost,
             "percent": round(stats.sets_won / total_sets * 100, 1) if total_sets > 0 else 0
         },
-        "rating": stats.rating_points
+        "points": stats.rating_points,
+        "rank": rank
     }
 
 
