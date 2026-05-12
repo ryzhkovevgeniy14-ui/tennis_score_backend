@@ -5,6 +5,9 @@ from app.db.base import Base
 
 
 class Match(Base):
+    """
+    Модель матча
+    """
     __tablename__ = "matches"
 
     id: Mapped[int] = mapped_column(primary_key=True)

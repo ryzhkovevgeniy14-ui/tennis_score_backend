@@ -5,6 +5,9 @@ from app.db.base import Base
 
 
 class PlayerStats(Base):
+    """
+    Модель статистики игрока
+    """
     __tablename__ = "player_stats"
 
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="CASCADE"), primary_key=True)

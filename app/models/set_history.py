@@ -5,6 +5,9 @@ from app.db.base import Base
 
 
 class SetHistory(Base):
+    """
+    Модель истории сыгранных сетов
+    """
     __tablename__ = 'sets_history'
 
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -5,6 +5,9 @@ from app.db.base import Base
 
 
 class Player(Base):
+    """
+    Модель игрока
+    """
     __tablename__ = "players"
 
     id: Mapped[int] = mapped_column(primary_key=True)
