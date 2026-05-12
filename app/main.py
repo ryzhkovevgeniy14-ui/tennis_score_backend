@@ -7,18 +7,15 @@ from app.routers import players, matches
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     """Выполняется при запуске и остановке сервера"""
-    # Startup
+
     print("Выполнение миграций...")
     from app.migrate import run_migrations
     await asyncio.to_thread(run_migrations)
     print("Миграции выполнены")
 
-    yield  # Здесь сервер работает
-
-    # Shutdown (опционально)
-    print("Завершение работы сервера")
+    yield
 
 
 app = FastAPI(lifespan=lifespan)
