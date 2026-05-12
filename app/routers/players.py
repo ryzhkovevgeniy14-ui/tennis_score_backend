@@ -18,7 +18,7 @@ router = APIRouter(
 @router.post("/", response_model=PlayerSchema, status_code=status.HTTP_201_CREATED)
 async def create_player(player: PlayerCreate, session: AsyncSession = Depends(get_async_db)):
     """
-    Добавляет нового игрока.
+    Добавление нового игрока
     """
     player_name = player.name.strip()
 
@@ -40,7 +40,7 @@ async def create_player(player: PlayerCreate, session: AsyncSession = Depends(ge
 @router.get("/", response_model=list[PlayerSchema], status_code=status.HTTP_200_OK)
 async def get_all_players(session: AsyncSession = Depends(get_async_db)):
     """
-    Возвращает список всех игроков.
+    Получение списка всех игроков
     """
     stmt = select(PlayerModel)
     result = await session.scalars(stmt)
@@ -52,7 +52,7 @@ async def get_all_players(session: AsyncSession = Depends(get_async_db)):
 @router.get("/{player_id}", response_model=PlayerSchema, status_code=status.HTTP_200_OK)
 async def get_player(player_id: int, session: AsyncSession = Depends(get_async_db)):
     """
-    Возвращает игрока по ID.
+    Получение игрока по ID
     """
     stmt = select(PlayerModel).where(PlayerModel.id == player_id)
     player = await session.scalar(stmt)
@@ -66,7 +66,7 @@ async def get_player(player_id: int, session: AsyncSession = Depends(get_async_d
 @router.get("/rating/")
 async def get_players_rating(session: AsyncSession = Depends(get_async_db)):
     """
-    Возвращает рейтинг всех игроков, отсортированный по убыванию
+    Получение рейтинга всех игроков, отсортированного по убыванию
     """
     # Получаем всех игроков
     players_result = await session.execute(select(PlayerModel))
@@ -94,6 +94,9 @@ async def get_players_rating(session: AsyncSession = Depends(get_async_db)):
 
 @router.get("/{player_id}/stats")
 async def get_player_stats(player_id: int, session: AsyncSession = Depends(get_async_db)):
+    """
+    Получение статистики игрока
+    """
     # Получаем игрока
     player = await session.get(PlayerModel, player_id)
     if not player:
@@ -107,17 +110,17 @@ async def get_player_stats(player_id: int, session: AsyncSession = Depends(get_a
     all_players_list = all_players.scalars().all()
 
     all_stats_result = await session.execute(select(PlayerStats))
-    stats_dict = {s.player_id: s for s in all_stats_result.scalars().all()}
+    stats_dict = {stats.player_id: stats for stats in all_stats_result.scalars().all()}
 
     # Формируем список очков для сортировки
     points_list = []
-    for p in all_players_list:
-        pts = stats_dict.get(p.id).rating_points if stats_dict.get(p.id) else 0
-        points_list.append({"player_id": p.id, "points": pts})
+    for player in all_players_list:
+        points = stats_dict.get(player.id).rating_points if stats_dict.get(player.id) else 0
+        points_list.append({"player_id": player.id, "points": points})
 
     # Сортируем по очкам (по убыванию) и определяем место
     points_list.sort(key=lambda x: x["points"], reverse=True)
-    rank = next((i + 1 for i, p in enumerate(points_list) if p["player_id"] == player_id), None)
+    rating = next((i + 1 for i, points in enumerate(points_list) if points["player_id"] == player_id), None)
 
     if not stats:
         return {
@@ -125,7 +128,7 @@ async def get_player_stats(player_id: int, session: AsyncSession = Depends(get_a
             "games": {"won": 0, "lost": 0, "percent": 0},
             "sets": {"won": 0, "lost": 0, "percent": 0},
             "points": 0,
-            "rank": rank
+            "rating": rating
         }
 
     total_games = stats.games_won + stats.games_lost
@@ -144,14 +147,14 @@ async def get_player_stats(player_id: int, session: AsyncSession = Depends(get_a
             "percent": round(stats.sets_won / total_sets * 100, 1) if total_sets > 0 else 0
         },
         "points": stats.rating_points,
-        "rank": rank
+        "rating": rating
     }
 
 
 @router.delete("/{player_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_player(player_id: int, session: AsyncSession = Depends(get_async_db)):
     """
-    Удаление игрока по ID.
+    Удаление игрока по ID
     """
     # Проверяем наличие игрока
     stmt = select(PlayerModel).where(PlayerModel.id == player_id)
