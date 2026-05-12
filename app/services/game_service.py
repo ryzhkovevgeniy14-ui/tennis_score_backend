@@ -1,4 +1,5 @@
 class GameService:
+    """Сервис с логикой игры: геймы, сеты, тай-брейк, подающий"""
     def __init__(self, player1_name: str, player2_name: str):
         self.player1_name = player1_name
         self.player2_name = player2_name
@@ -49,7 +50,10 @@ class GameService:
                 self._finish_set(self.player2_name, server_before_point)
 
     def _finish_set(self, winner_name: str, server_who_served_last_game: str):
+        # Запоминаем последний счёт в сете
         self.last_score_games = (self.games[0], self.games[1])
+
+        # Запоминаем последнего подающего
         self.last_server = server_who_served_last_game
 
         if self.tiebreak:
