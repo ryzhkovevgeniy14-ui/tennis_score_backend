@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: tennis_db
+    restart: always
+
+    environment:
+      POSTGRES_USER: tennis_user
+      POSTGRES_PASSWORD: tennis
+      POSTGRES_DB: tennis_score_db
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tennis_user -d tennis_score_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: tennis_backend
+    restart: always
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    ports:
+      - "8000:8000"
+
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tennis_user:tennis@db:5432/tennis_score_db
+      PYTHONPATH: /app
+
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+volumes:
+  postgres_data:
